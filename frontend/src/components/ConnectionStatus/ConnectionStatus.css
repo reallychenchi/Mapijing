@@ -1,0 +1,31 @@
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.status-label {
+  color: #666;
+}
+
+.reconnect-button {
+  background: none;
+  border: 1px solid #666;
+  color: #666;
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.reconnect-button:hover {
+  background-color: #f0f0f0;
+}

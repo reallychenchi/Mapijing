@@ -81,7 +81,7 @@ describe('TextArea', () => {
     );
 
     expect(screen.getByText('网络错误')).toBeInTheDocument();
-    expect(screen.getByText('重试')).toBeInTheDocument();
+    expect(screen.getByText('点击重试')).toBeInTheDocument();
   });
 
   it('should call onRetry when retry button is clicked', () => {
@@ -99,7 +99,7 @@ describe('TextArea', () => {
       />
     );
 
-    fireEvent.click(screen.getByText('重试'));
+    fireEvent.click(screen.getByText('点击重试'));
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 

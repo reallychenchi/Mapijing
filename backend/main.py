@@ -1,6 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
+from api.websocket import websocket_endpoint
 from config.settings import settings
 
 app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION)
@@ -25,3 +26,9 @@ async def health_check() -> dict[str, str]:
 async def get_config() -> dict[str, list[str]]:
     """Get application configuration."""
     return {"emotion_types": settings.EMOTION_TYPES}
+
+
+@app.websocket("/ws/chat")
+async def ws_chat(websocket: WebSocket) -> None:
+    """WebSocket 聊天端点."""
+    await websocket_endpoint(websocket)

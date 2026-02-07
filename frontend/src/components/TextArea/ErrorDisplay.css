@@ -2,32 +2,45 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1rem;
-  padding: 1rem;
+  justify-content: center;
+  padding: 20px;
+  text-align: center;
+}
+
+.error-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  color: #dc3545;
+}
+
+.error-title {
+  color: #dc3545;
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 8px;
 }
 
 .error-message {
-  color: #dc2626;
-  font-size: 1rem;
-  text-align: center;
-  margin: 0;
+  color: #666;
+  font-size: 14px;
+  margin-bottom: 20px;
 }
 
 .retry-button {
-  padding: 0.5rem 1.5rem;
-  background-color: #dc2626;
+  background-color: #dc3545;
   color: white;
   border: none;
-  border-radius: 0.375rem;
-  font-size: 0.875rem;
+  padding: 12px 24px;
+  font-size: 16px;
+  border-radius: 8px;
   cursor: pointer;
   transition: background-color 0.2s;
 }
 
 .retry-button:hover {
-  background-color: #b91c1c;
+  background-color: #c82333;
 }
 
 .retry-button:active {
-  background-color: #991b1b;
+  background-color: #bd2130;
 }
