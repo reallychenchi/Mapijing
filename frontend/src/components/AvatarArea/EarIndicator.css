@@ -1,0 +1,21 @@
+.ear-indicator {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 2rem;
+  opacity: 1;
+  transform: translate(25%, -25%);
+}
+
+.ear-indicator.blinking {
+  animation: blink 2s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.2;
+  }
+}

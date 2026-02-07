@@ -1,0 +1,32 @@
+.layout {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  overflow: hidden;
+}
+
+.layout.mobile {
+  flex-direction: column;
+}
+
+.layout.desktop {
+  flex-direction: row;
+}
+
+.avatar-section,
+.text-section {
+  flex: 1;
+  overflow: hidden;
+}
+
+.layout.mobile .avatar-section,
+.layout.mobile .text-section {
+  height: 50vh;
+  width: 100%;
+}
+
+.layout.desktop .avatar-section,
+.layout.desktop .text-section {
+  width: 50vw;
+  height: 100%;
+}
