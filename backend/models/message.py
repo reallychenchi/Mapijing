@@ -22,6 +22,7 @@ class ServerMessageType(str, Enum):
     TTS_END = "tts_end"
     EMOTION = "emotion"
     ERROR = "error"
+    LLM_RESPONSE = "llm_response"  # 阶段4临时消息类型，阶段5将替换为tts_chunk
 
 
 class ErrorCode(str, Enum):

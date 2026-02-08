@@ -15,7 +15,8 @@ export type ServerMessageType =
   | 'tts_chunk'
   | 'tts_end'
   | 'emotion'
-  | 'error';
+  | 'error'
+  | 'llm_response'; // 阶段4临时消息类型
 
 // 错误码
 export type ErrorCode =
@@ -100,13 +101,22 @@ export type ErrorMessage = BaseMessage<
   }
 >;
 
+// 阶段4临时：LLM 回复消息
+export type LlmResponseMessage = BaseMessage<
+  'llm_response',
+  {
+    text: string;
+  }
+>;
+
 export type ServerMessage =
   | AsrResultMessage
   | AsrEndMessage
   | TtsChunkMessage
   | TtsEndMessage
   | EmotionMessage
-  | ErrorMessage;
+  | ErrorMessage
+  | LlmResponseMessage;
 
 // 创建客户端消息的辅助函数
 export function createAudioDataMessage(audio: string, seq: number): AudioDataMessage {

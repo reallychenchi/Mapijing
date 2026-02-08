@@ -7,10 +7,20 @@ import { useState, useCallback, useRef } from 'react';
 import { useWebSocket } from './useWebSocket';
 import { useAudioRecorder } from './useAudioRecorder';
 import { useMediaPermission } from './useMediaPermission';
-import type { ServerMessage, AsrResultMessage, AsrEndMessage } from '../types/message';
+import { useEmotion } from './useEmotion';
+import type {
+  ServerMessage,
+  AsrResultMessage,
+  AsrEndMessage,
+  EmotionMessage,
+  LlmResponseMessage,
+} from '../types/message';
 import { createAudioDataMessage, createAudioEndMessage } from '../types/message';
+import type { EmotionType } from '../types/emotion';
 
 export type ConversationState = 'idle' | 'listening' | 'processing';
+
+export type Speaker = 'user' | 'assistant';
 
 export interface UseConversationReturn {
   // 状态
@@ -21,6 +31,13 @@ export interface UseConversationReturn {
   // ASR 结果
   currentText: string; // 当前识别文本（实时更新）
   finalText: string; // 最终确认文本
+
+  // LLM 回复
+  assistantText: string; // 助手回复文本
+  speaker: Speaker; // 当前说话者
+
+  // 情感状态
+  emotion: EmotionType;
 
   // 操作
   startListening: () => Promise<void>;
@@ -36,6 +53,8 @@ export function useConversation(): UseConversationReturn {
   const [state, setState] = useState<ConversationState>('idle');
   const [currentText, setCurrentText] = useState('');
   const [finalText, setFinalText] = useState('');
+  const [assistantText, setAssistantText] = useState('');
+  const [speaker, setSpeaker] = useState<Speaker>('user');
   const [error, setError] = useState<string | null>(null);
 
   const isStoppingRef = useRef(false);
@@ -43,20 +62,36 @@ export function useConversation(): UseConversationReturn {
   // 权限管理
   const { state: permissionState, request: requestPermission } = useMediaPermission();
 
+  // 情感状态管理
+  const { emotion, setEmotionFromServer } = useEmotion();
+
   // 处理服务端消息
-  const handleServerMessage = useCallback((message: ServerMessage) => {
-    if (message.type === 'asr_result') {
-      const asrMessage = message as AsrResultMessage;
-      setCurrentText(asrMessage.data.text);
-      if (asrMessage.data.is_final) {
-        setFinalText(asrMessage.data.text);
+  const handleServerMessage = useCallback(
+    (message: ServerMessage) => {
+      if (message.type === 'asr_result') {
+        const asrMessage = message as AsrResultMessage;
+        setCurrentText(asrMessage.data.text);
+        setSpeaker('user');
+        if (asrMessage.data.is_final) {
+          setFinalText(asrMessage.data.text);
+        }
+      } else if (message.type === 'asr_end') {
+        const asrEndMessage = message as AsrEndMessage;
+        setFinalText(asrEndMessage.data.text);
+        // 不立即切换到 idle，等待 LLM 回复
+        setState('processing');
+      } else if (message.type === 'emotion') {
+        const emotionMessage = message as EmotionMessage;
+        setEmotionFromServer(emotionMessage.data.emotion);
+      } else if (message.type === 'llm_response') {
+        const llmMessage = message as LlmResponseMessage;
+        setAssistantText(llmMessage.data.text);
+        setSpeaker('assistant');
+        setState('idle');
       }
-    } else if (message.type === 'asr_end') {
-      const asrEndMessage = message as AsrEndMessage;
-      setFinalText(asrEndMessage.data.text);
-      setState('idle');
-    }
-  }, []);
+    },
+    [setEmotionFromServer]
+  );
 
   // WebSocket 连接
   const {
@@ -141,6 +176,9 @@ export function useConversation(): UseConversationReturn {
     isConnected: wsState === 'connected',
     currentText,
     finalText,
+    assistantText,
+    speaker,
+    emotion,
     startListening,
     stopListening,
     requestPermission,

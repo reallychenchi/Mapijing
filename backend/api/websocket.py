@@ -6,8 +6,12 @@ import time
 
 from fastapi import WebSocket, WebSocketDisconnect
 
+from config.settings import settings
 from models.message import ErrorCode, ServerMessageType
 from services.asr_service import ASRService
+from services.context_manager import ContextConfig
+from services.conversation_service import ConversationConfig, ConversationService
+from services.llm_service import LLMConfig
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +23,7 @@ class ConnectionManager:
         """初始化连接管理器."""
         self.active_connection: WebSocket | None = None
         self.asr_service: ASRService | None = None
+        self.conversation_service: ConversationService | None = None
         self._final_text = ""
 
     async def connect(self, websocket: WebSocket) -> None:
@@ -26,13 +31,36 @@ class ConnectionManager:
         await websocket.accept()
         self.active_connection = websocket
         self._final_text = ""
+        # 初始化会话服务
+        await self._init_conversation_service()
         logger.info("WebSocket connected")
+
+    async def _init_conversation_service(self) -> None:
+        """初始化会话服务."""
+        llm_config = LLMConfig(
+            api_key=settings.DEEPSEEK_API_KEY,
+            api_url=settings.DEEPSEEK_API_URL,
+            model=settings.DEEPSEEK_MODEL,
+            max_tokens=settings.DEEPSEEK_MAX_TOKENS,
+            temperature=settings.DEEPSEEK_TEMPERATURE,
+        )
+        context_config = ContextConfig(
+            max_tokens=settings.CONTEXT_MAX_TOKENS,
+        )
+        config = ConversationConfig(
+            llm_config=llm_config,
+            context_config=context_config,
+        )
+        self.conversation_service = ConversationService(config)
 
     async def disconnect(self) -> None:
         """断开连接."""
         if self.asr_service:
             await self.asr_service.disconnect()
             self.asr_service = None
+        if self.conversation_service:
+            await self.conversation_service.close()
+            self.conversation_service = None
         self.active_connection = None
         logger.info("WebSocket disconnected")
 
@@ -70,6 +98,24 @@ class ConnectionManager:
             {
                 "type": ServerMessageType.ASR_END.value,
                 "data": {"text": self._final_text},
+            }
+        )
+
+    async def send_emotion(self, emotion: str) -> None:
+        """发送情感状态变更消息."""
+        await self.send_message(
+            {
+                "type": ServerMessageType.EMOTION.value,
+                "data": {"emotion": emotion},
+            }
+        )
+
+    async def send_llm_response(self, text: str) -> None:
+        """发送 LLM 回复消息（阶段4临时）."""
+        await self.send_message(
+            {
+                "type": ServerMessageType.LLM_RESPONSE.value,
+                "data": {"text": text},
             }
         )
 
@@ -151,6 +197,19 @@ async def handle_audio_end() -> None:
         await manager.send_asr_end()
         # 停止 ASR 服务
         await manager.stop_asr()
+
+        # 如果有识别结果，调用 LLM 处理
+        final_text = manager._final_text
+        if final_text and manager.conversation_service:
+            try:
+                await manager.conversation_service.process_user_input(
+                    user_text=final_text,
+                    on_emotion_change=manager.send_emotion,
+                    on_llm_response=manager.send_llm_response,
+                )
+            except Exception as e:
+                logger.error(f"LLM error: {e}")
+                await manager.send_error(ErrorCode.LLM_ERROR, str(e))
 
 
 async def websocket_endpoint(websocket: WebSocket) -> None:
