@@ -31,11 +31,16 @@ class Settings:
     VOLC_ASR_APP_ID: str = os.getenv("VOLC_ASR_APP_ID", "")
     VOLC_ASR_ACCESS_KEY: str = os.getenv("VOLC_ASR_ACCESS_KEY", "")
 
-    # 火山引擎 TTS 配置（阶段 5 使用）
+    # 火山引擎 TTS 配置
     VOLC_TTS_URL: str = "wss://openspeech.bytedance.com/api/v1/tts/ws_binary"
     VOLC_TTS_APP_ID: str = os.getenv("VOLC_TTS_APP_ID", "")
     VOLC_TTS_ACCESS_KEY: str = os.getenv("VOLC_TTS_ACCESS_KEY", "")
     VOLC_TTS_CLUSTER: str = os.getenv("VOLC_TTS_CLUSTER", "volcano_tts")
+    VOLC_TTS_VOICE_TYPE: str = os.getenv(
+        "VOLC_TTS_VOICE_TYPE", "zh_female_cancan_mars_bigtts"
+    )
+    VOLC_TTS_SPEED_RATIO: float = float(os.getenv("VOLC_TTS_SPEED_RATIO", "1.0"))
+    VOLC_TTS_VOLUME_RATIO: float = float(os.getenv("VOLC_TTS_VOLUME_RATIO", "1.0"))
 
     # Emotion types
     EMOTION_TYPES: list[str] = ["默认陪伴", "共情倾听", "安慰支持", "轻松愉悦"]

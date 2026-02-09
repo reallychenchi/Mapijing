@@ -1,6 +1,6 @@
 /**
  * 会话管理 Hook
- * 整合录音、WebSocket、ASR 结果处理
+ * 整合录音、WebSocket、ASR 结果处理、TTS 音频播放
  */
 
 import { useState, useCallback, useRef } from 'react';
@@ -8,17 +8,24 @@ import { useWebSocket } from './useWebSocket';
 import { useAudioRecorder } from './useAudioRecorder';
 import { useMediaPermission } from './useMediaPermission';
 import { useEmotion } from './useEmotion';
+import { useAudioPlayer } from './useAudioPlayer';
 import type {
   ServerMessage,
   AsrResultMessage,
   AsrEndMessage,
   EmotionMessage,
   LlmResponseMessage,
+  TtsChunkMessage,
+  TtsEndMessage,
 } from '../types/message';
-import { createAudioDataMessage, createAudioEndMessage } from '../types/message';
+import {
+  createAudioDataMessage,
+  createAudioEndMessage,
+  createInterruptMessage,
+} from '../types/message';
 import type { EmotionType } from '../types/emotion';
 
-export type ConversationState = 'idle' | 'listening' | 'processing';
+export type ConversationState = 'idle' | 'listening' | 'processing' | 'speaking';
 
 export type Speaker = 'user' | 'assistant';
 
@@ -35,6 +42,10 @@ export interface UseConversationReturn {
   // LLM 回复
   assistantText: string; // 助手回复文本
   speaker: Speaker; // 当前说话者
+  isStreaming: boolean; // 是否正在流式输出
+
+  // 音频播放
+  isPlaying: boolean; // 是否正在播放
 
   // 情感状态
   emotion: EmotionType;
@@ -43,6 +54,7 @@ export interface UseConversationReturn {
   startListening: () => Promise<void>;
   stopListening: () => void;
   requestPermission: () => Promise<boolean>;
+  interrupt: () => void;
 
   // 错误
   error: string | null;
@@ -55,6 +67,7 @@ export function useConversation(): UseConversationReturn {
   const [finalText, setFinalText] = useState('');
   const [assistantText, setAssistantText] = useState('');
   const [speaker, setSpeaker] = useState<Speaker>('user');
+  const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isStoppingRef = useRef(false);
@@ -64,6 +77,9 @@ export function useConversation(): UseConversationReturn {
 
   // 情感状态管理
   const { emotion, setEmotionFromServer } = useEmotion();
+
+  // 音频播放管理
+  const { enqueue, clear: clearAudio, isPlaying } = useAudioPlayer();
 
   // 处理服务端消息
   const handleServerMessage = useCallback(
@@ -78,19 +94,51 @@ export function useConversation(): UseConversationReturn {
       } else if (message.type === 'asr_end') {
         const asrEndMessage = message as AsrEndMessage;
         setFinalText(asrEndMessage.data.text);
-        // 不立即切换到 idle，等待 LLM 回复
+        // 不立即切换到 idle，等待 TTS 回复
         setState('processing');
       } else if (message.type === 'emotion') {
         const emotionMessage = message as EmotionMessage;
         setEmotionFromServer(emotionMessage.data.emotion);
       } else if (message.type === 'llm_response') {
+        // 阶段4兼容：非流式 LLM 响应
         const llmMessage = message as LlmResponseMessage;
         setAssistantText(llmMessage.data.text);
         setSpeaker('assistant');
+        setIsStreaming(false);
+        setState('idle');
+      } else if (message.type === 'tts_chunk') {
+        // 阶段5：TTS 文字+音频片段
+        const ttsMessage = message as TtsChunkMessage;
+        if (ttsMessage.data.seq === 1) {
+          // 第一个片段，清空之前的文字
+          setAssistantText(ttsMessage.data.text);
+        } else {
+          // 追加文字
+          setAssistantText((prev) => prev + ttsMessage.data.text);
+        }
+        setSpeaker('assistant');
+        setIsStreaming(true);
+        setState('speaking');
+
+        // 音频入队
+        if (ttsMessage.data.audio) {
+          enqueue({
+            audio: ttsMessage.data.audio,
+            seq: ttsMessage.data.seq,
+          });
+        }
+      } else if (message.type === 'tts_end') {
+        // TTS 完成
+        const ttsEndMessage = message as TtsEndMessage;
+        if (ttsEndMessage.data.full_text) {
+          // 更新为完整文本
+          setAssistantText(ttsEndMessage.data.full_text);
+        }
+        setIsStreaming(false);
         setState('idle');
       }
     },
-    [setEmotionFromServer]
+    [setEmotionFromServer, enqueue]
   );
 
   // WebSocket 连接
@@ -161,6 +209,22 @@ export function useConversation(): UseConversationReturn {
     }
   }, [state, wsState, stopRecording, send]);
 
+  // 打断（用户开始说话时调用）
+  const interrupt = useCallback(() => {
+    if (state !== 'speaking') return;
+
+    // 清空音频队列
+    clearAudio();
+
+    // 发送打断消息
+    if (wsState === 'connected') {
+      send(createInterruptMessage());
+    }
+
+    setState('idle');
+    setIsStreaming(false);
+  }, [state, wsState, send, clearAudio]);
+
   // 清除错误
   const clearError = useCallback(() => {
     setError(null);
@@ -178,10 +242,13 @@ export function useConversation(): UseConversationReturn {
     finalText,
     assistantText,
     speaker,
+    isStreaming,
+    isPlaying,
     emotion,
     startListening,
     stopListening,
     requestPermission,
+    interrupt,
     error: actualError,
     clearError,
   };

@@ -1,5 +1,6 @@
 """WebSocket 端点实现."""
 
+import base64
 import json
 import logging
 import time
@@ -12,6 +13,7 @@ from services.asr_service import ASRService
 from services.context_manager import ContextConfig
 from services.conversation_service import ConversationConfig, ConversationService
 from services.llm_service import LLMConfig
+from services.tts_service import TTSConfig
 
 logger = logging.getLogger(__name__)
 
@@ -25,12 +27,14 @@ class ConnectionManager:
         self.asr_service: ASRService | None = None
         self.conversation_service: ConversationService | None = None
         self._final_text = ""
+        self._is_processing = False
 
     async def connect(self, websocket: WebSocket) -> None:
         """接受并存储连接."""
         await websocket.accept()
         self.active_connection = websocket
         self._final_text = ""
+        self._is_processing = False
         # 初始化会话服务
         await self._init_conversation_service()
         logger.info("WebSocket connected")
@@ -47,9 +51,16 @@ class ConnectionManager:
         context_config = ContextConfig(
             max_tokens=settings.CONTEXT_MAX_TOKENS,
         )
+        tts_config = TTSConfig(
+            app_id=settings.VOLC_TTS_APP_ID,
+            access_key=settings.VOLC_TTS_ACCESS_KEY,
+            cluster=settings.VOLC_TTS_CLUSTER,
+            voice_type=settings.VOLC_TTS_VOICE_TYPE,
+        )
         config = ConversationConfig(
             llm_config=llm_config,
             context_config=context_config,
+            tts_config=tts_config,
         )
         self.conversation_service = ConversationService(config)
 
@@ -111,11 +122,41 @@ class ConnectionManager:
         )
 
     async def send_llm_response(self, text: str) -> None:
-        """发送 LLM 回复消息（阶段4临时）."""
+        """发送 LLM 回复消息（阶段4临时，保留向后兼容）."""
         await self.send_message(
             {
                 "type": ServerMessageType.LLM_RESPONSE.value,
                 "data": {"text": text},
+            }
+        )
+
+    async def send_tts_chunk(
+        self,
+        text: str,
+        audio: bytes,
+        seq: int,
+        is_final: bool = False,
+    ) -> None:
+        """发送 TTS 文字+音频片段."""
+        audio_base64 = base64.b64encode(audio).decode("utf-8") if audio else ""
+        await self.send_message(
+            {
+                "type": ServerMessageType.TTS_CHUNK.value,
+                "data": {
+                    "text": text,
+                    "audio": audio_base64,
+                    "seq": seq,
+                    "is_final": is_final,
+                },
+            }
+        )
+
+    async def send_tts_end(self, full_text: str) -> None:
+        """发送 TTS 完成消息."""
+        await self.send_message(
+            {
+                "type": ServerMessageType.TTS_END.value,
+                "data": {"full_text": full_text},
             }
         )
 
@@ -158,8 +199,7 @@ async def handle_message(message: dict[str, object], websocket: WebSocket) -> No
     elif msg_type == "audio_end":
         await handle_audio_end()
     elif msg_type == "interrupt":
-        # 阶段 5 实现
-        pass
+        await handle_interrupt()
     else:
         await manager.send_error(ErrorCode.UNKNOWN_ERROR, f"Unknown message type: {msg_type}")
 
@@ -198,18 +238,49 @@ async def handle_audio_end() -> None:
         # 停止 ASR 服务
         await manager.stop_asr()
 
-        # 如果有识别结果，调用 LLM 处理
+        # 如果有识别结果，调用流式 LLM + TTS 处理
         final_text = manager._final_text
         if final_text and manager.conversation_service:
+            manager._is_processing = True
+            full_response_text = ""
             try:
-                await manager.conversation_service.process_user_input(
+                async for chunk in manager.conversation_service.process_user_input_stream(
                     user_text=final_text,
                     on_emotion_change=manager.send_emotion,
-                    on_llm_response=manager.send_llm_response,
-                )
+                ):
+                    if not manager._is_processing:
+                        # 被打断了
+                        break
+
+                    full_response_text += chunk.text
+                    await manager.send_tts_chunk(
+                        text=chunk.text,
+                        audio=chunk.audio,
+                        seq=chunk.seq,
+                        is_final=False,
+                    )
+
+                # 发送 TTS 结束消息
+                await manager.send_tts_end(full_response_text)
+
             except Exception as e:
-                logger.error(f"LLM error: {e}")
+                logger.error(f"Stream processing error: {e}")
                 await manager.send_error(ErrorCode.LLM_ERROR, str(e))
+            finally:
+                manager._is_processing = False
+
+
+async def handle_interrupt() -> None:
+    """处理打断消息."""
+    logger.info("Interrupt received")
+
+    # 中断当前处理
+    manager._is_processing = False
+    if manager.conversation_service:
+        manager.conversation_service.interrupt()
+
+    # 发送 TTS 结束消息（强制结束）
+    await manager.send_tts_end("")
 
 
 async def websocket_endpoint(websocket: WebSocket) -> None:
