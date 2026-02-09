@@ -1,13 +1,13 @@
 """流式处理器测试."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
-from services.stream_processor import StreamProcessor, TTSChunk
-from services.text_splitter import TextSplitter
-from services.tts_service import TTSConfig, TTSResult, TTSService
-from services.llm_service import LLMConfig, LLMService
+import pytest
+
 from services.emotion_parser import EmotionParser
+from services.llm_service import LLMService
+from services.stream_processor import StreamProcessor, TTSChunk
+from services.tts_service import TTSResult, TTSService
 
 
 class TestTTSChunk:

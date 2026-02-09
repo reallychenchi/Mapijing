@@ -1,6 +1,5 @@
 """文本分句器测试."""
 
-import pytest
 
 from services.text_splitter import TextSplitter
 

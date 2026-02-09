@@ -1,6 +1,6 @@
 /**
  * 会话管理 Hook
- * 整合录音、WebSocket、ASR 结果处理、TTS 音频播放
+ * 整合录音、WebSocket、ASR 结果处理、TTS 音频播放、会话存储
  */
 
 import { useState, useCallback, useRef } from 'react';
@@ -9,6 +9,8 @@ import { useAudioRecorder } from './useAudioRecorder';
 import { useMediaPermission } from './useMediaPermission';
 import { useEmotion } from './useEmotion';
 import { useAudioPlayer } from './useAudioPlayer';
+import { storage } from '../services/storage';
+import type { Message } from '../types/conversation';
 import type {
   ServerMessage,
   AsrResultMessage,
@@ -24,6 +26,11 @@ import {
   createInterruptMessage,
 } from '../types/message';
 import type { EmotionType } from '../types/emotion';
+
+// 简单的唯一 ID 生成器
+function generateId(): string {
+  return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+}
 
 export type ConversationState = 'idle' | 'listening' | 'processing' | 'speaking';
 
@@ -50,11 +57,15 @@ export interface UseConversationReturn {
   // 情感状态
   emotion: EmotionType;
 
+  // 历史消息
+  messages: Message[];
+
   // 操作
   startListening: () => Promise<void>;
   stopListening: () => void;
   requestPermission: () => Promise<boolean>;
   interrupt: () => void;
+  clearHistory: () => void;
 
   // 错误
   error: string | null;
@@ -69,8 +80,14 @@ export function useConversation(): UseConversationReturn {
   const [speaker, setSpeaker] = useState<Speaker>('user');
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 使用惰性初始化来恢复对话历史
+  const [messages, setMessages] = useState<Message[]>(() => {
+    const history = storage.loadConversation();
+    return history?.messages ?? [];
+  });
 
   const isStoppingRef = useRef(false);
+  const currentAssistantTextRef = useRef('');
 
   // 权限管理
   const { state: permissionState, request: requestPermission } = useMediaPermission();
@@ -80,6 +97,49 @@ export function useConversation(): UseConversationReturn {
 
   // 音频播放管理
   const { enqueue, clear: clearAudio, isPlaying } = useAudioPlayer();
+
+  // 添加用户消息到历史
+  const addUserMessage = useCallback((text: string) => {
+    const userMessage: Message = {
+      id: generateId(),
+      role: 'user',
+      content: text,
+      timestamp: Date.now(),
+    };
+
+    setMessages((prev) => {
+      const updated = [...prev, userMessage];
+      // 保存到 localStorage
+      storage.saveConversation({
+        messages: updated,
+        currentEmotion: '默认陪伴',
+        lastUpdated: Date.now(),
+      });
+      return updated;
+    });
+  }, []);
+
+  // 添加助手消息到历史
+  const addAssistantMessage = useCallback((text: string, msgEmotion?: string) => {
+    const assistantMessage: Message = {
+      id: generateId(),
+      role: 'assistant',
+      content: text,
+      timestamp: Date.now(),
+      emotion: msgEmotion,
+    };
+
+    setMessages((prev) => {
+      const updated = [...prev, assistantMessage];
+      // 保存到 localStorage
+      storage.saveConversation({
+        messages: updated,
+        currentEmotion: msgEmotion || '默认陪伴',
+        lastUpdated: Date.now(),
+      });
+      return updated;
+    });
+  }, []);
 
   // 处理服务端消息
   const handleServerMessage = useCallback(
@@ -94,11 +154,16 @@ export function useConversation(): UseConversationReturn {
       } else if (message.type === 'asr_end') {
         const asrEndMessage = message as AsrEndMessage;
         setFinalText(asrEndMessage.data.text);
+        // 保存用户消息到历史
+        if (asrEndMessage.data.text) {
+          addUserMessage(asrEndMessage.data.text);
+        }
         // 不立即切换到 idle，等待 TTS 回复
         setState('processing');
       } else if (message.type === 'emotion') {
         const emotionMessage = message as EmotionMessage;
         setEmotionFromServer(emotionMessage.data.emotion);
+        storage.updateEmotion(emotionMessage.data.emotion);
       } else if (message.type === 'llm_response') {
         // 阶段4兼容：非流式 LLM 响应
         const llmMessage = message as LlmResponseMessage;
@@ -106,15 +171,19 @@ export function useConversation(): UseConversationReturn {
         setSpeaker('assistant');
         setIsStreaming(false);
         setState('idle');
+        // 保存助手消息
+        addAssistantMessage(llmMessage.data.text);
       } else if (message.type === 'tts_chunk') {
         // 阶段5：TTS 文字+音频片段
         const ttsMessage = message as TtsChunkMessage;
         if (ttsMessage.data.seq === 1) {
           // 第一个片段，清空之前的文字
           setAssistantText(ttsMessage.data.text);
+          currentAssistantTextRef.current = ttsMessage.data.text;
         } else {
           // 追加文字
           setAssistantText((prev) => prev + ttsMessage.data.text);
+          currentAssistantTextRef.current += ttsMessage.data.text;
         }
         setSpeaker('assistant');
         setIsStreaming(true);
@@ -130,15 +199,21 @@ export function useConversation(): UseConversationReturn {
       } else if (message.type === 'tts_end') {
         // TTS 完成
         const ttsEndMessage = message as TtsEndMessage;
-        if (ttsEndMessage.data.full_text) {
+        const fullText = ttsEndMessage.data.full_text || currentAssistantTextRef.current;
+        if (fullText) {
           // 更新为完整文本
-          setAssistantText(ttsEndMessage.data.full_text);
+          setAssistantText(fullText);
+          // 保存助手消息（如果有内容且不是被打断的）
+          if (fullText.trim()) {
+            addAssistantMessage(fullText);
+          }
         }
         setIsStreaming(false);
         setState('idle');
+        currentAssistantTextRef.current = '';
       }
     },
-    [setEmotionFromServer, enqueue]
+    [setEmotionFromServer, enqueue, addUserMessage, addAssistantMessage]
   );
 
   // WebSocket 连接
@@ -231,6 +306,12 @@ export function useConversation(): UseConversationReturn {
     clearWsError();
   }, [clearWsError]);
 
+  // 清空对话历史
+  const clearHistory = useCallback(() => {
+    setMessages([]);
+    storage.clearConversation();
+  }, []);
+
   // 计算实际的错误状态 - 直接使用 wsError 而不是通过 effect 同步
   const actualError = wsError ? wsError.data.message : error;
 
@@ -245,9 +326,11 @@ export function useConversation(): UseConversationReturn {
     isStreaming,
     isPlaying,
     emotion,
+    messages,
     startListening,
     stopListening,
     requestPermission,
+    clearHistory,
     interrupt,
     error: actualError,
     clearError,

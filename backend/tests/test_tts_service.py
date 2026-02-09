@@ -1,17 +1,18 @@
 """TTS 服务测试."""
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from services.tts_service import (
-    TTSConfig,
-    TTSResult,
-    TTSService,
-    TTSMessage,
+    CompressionBits,
     MsgType,
     MsgTypeFlagBits,
     SerializationBits,
-    CompressionBits,
+    TTSConfig,
+    TTSMessage,
+    TTSResult,
+    TTSService,
     get_cluster,
 )
 
@@ -240,7 +241,11 @@ class TestTTSService:
         mock_ws.recv = AsyncMock(side_effect=[audio_response, end_response])
         mock_ws.send = AsyncMock()
 
-        with patch('websockets.connect', return_value=AsyncMock(__aenter__=AsyncMock(return_value=mock_ws), __aexit__=AsyncMock())):
+        mock_connect = AsyncMock(
+            __aenter__=AsyncMock(return_value=mock_ws),
+            __aexit__=AsyncMock(),
+        )
+        with patch("websockets.connect", return_value=mock_connect):
             result = await service.synthesize("测试文本")
 
         # 由于连接被 mock，应该返回成功或处理错误

@@ -71,7 +71,7 @@ describe('AvatarArea', () => {
     );
 
     const ear = screen.getByRole('img', { name: '耳朵提示' });
-    expect(ear).toHaveClass('blinking');
+    expect(ear).toHaveClass('ear-indicator--blinking');
   });
 
   it('should not apply blinking class when isEarBlinking is false', () => {
@@ -84,6 +84,6 @@ describe('AvatarArea', () => {
     );
 
     const ear = screen.getByRole('img', { name: '耳朵提示' });
-    expect(ear).not.toHaveClass('blinking');
+    expect(ear).not.toHaveClass('ear-indicator--blinking');
   });
 });
