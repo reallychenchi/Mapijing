@@ -42,6 +42,22 @@ class Settings:
     VOLC_TTS_SPEED_RATIO: float = float(os.getenv("VOLC_TTS_SPEED_RATIO", "1.0"))
     VOLC_TTS_VOLUME_RATIO: float = float(os.getenv("VOLC_TTS_VOLUME_RATIO", "1.0"))
 
+    # 火山引擎端到端实时语音大模型配置
+    # 复用 ASR 的 APP_ID 和 ACCESS_KEY
+    VOLC_E2E_APP_ID: str = os.getenv("VOLC_E2E_APP_ID", "") or os.getenv("VOLC_ASR_APP_ID", "")
+    VOLC_E2E_ACCESS_KEY: str = os.getenv("VOLC_E2E_ACCESS_KEY", "") or os.getenv("VOLC_ASR_ACCESS_KEY", "")
+    VOLC_E2E_MODEL: str = os.getenv("VOLC_E2E_MODEL", "O")  # O, SC, 1.2.1.0, 2.2.0.0
+    VOLC_E2E_SPEAKER: str = os.getenv("VOLC_E2E_SPEAKER", "zh_female_vv_jupiter_bigtts")
+    VOLC_E2E_BOT_NAME: str = os.getenv("VOLC_E2E_BOT_NAME", "小马")
+    VOLC_E2E_SYSTEM_ROLE: str = os.getenv(
+        "VOLC_E2E_SYSTEM_ROLE",
+        "你是一个友善、温暖的AI助手，名叫小马。你善于倾听，能够给予用户情感支持和陪伴。"
+    )
+    VOLC_E2E_SPEAKING_STYLE: str = os.getenv(
+        "VOLC_E2E_SPEAKING_STYLE",
+        "你的说话风格简洁明了，语速适中，语调自然，充满关怀。"
+    )
+
     # Emotion types
     EMOTION_TYPES: list[str] = ["默认陪伴", "共情倾听", "安慰支持", "轻松愉悦"]
 
