@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { AVATAR_MAP } from '../../types/emotion';
 import './Mapijing.css';
 
 // WebSocket 消息类型
@@ -420,7 +421,7 @@ export function Mapijing() {
         <h1 className="mpj-title">马屁精来喽！</h1>
         <div className="mpj-landing-body">
           <img
-            src="/assets/avatars/default.png"
+            src={AVATAR_MAP.default}
             alt="马屁精"
             className="mpj-avatar"
           />

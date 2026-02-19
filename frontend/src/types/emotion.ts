@@ -9,9 +9,13 @@ export const EMOTION_MAP: Record<string, EmotionType> = {
   '轻松愉悦': 'happy',
 };
 
+// Use import.meta.env.BASE_URL to handle base path correctly in production
+// For files in public/ directory, Vite doesn't process them via import
+const getAvatarPath = (filename: string) => `${import.meta.env.BASE_URL}assets/avatars/${filename}`;
+
 export const AVATAR_MAP: Record<EmotionType, string> = {
-  default: '/assets/avatars/default.png',
-  empathy: '/assets/avatars/empathy.png',
-  comfort: '/assets/avatars/comfort.png',
-  happy: '/assets/avatars/happy.png',
+  default: getAvatarPath('default.png'),
+  empathy: getAvatarPath('empathy.png'),
+  comfort: getAvatarPath('comfort.png'),
+  happy: getAvatarPath('happy.png'),
 };
