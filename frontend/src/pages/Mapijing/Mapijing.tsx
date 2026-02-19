@@ -155,6 +155,13 @@ export function Mapijing() {
         case 'session_started':
           setSessionState('connected');
           setError(null);
+          // 发送自动问候消息（不在前端显示）
+          if (wsRef.current) {
+            wsRef.current.send(JSON.stringify({
+              type: 'text_query',
+              data: { text: '用户来了，请给用户打个招呼开始你们的聊天，用敬语，要能让用户聊起来。' }
+            }));
+          }
           break;
 
         case 'asr_result': {
