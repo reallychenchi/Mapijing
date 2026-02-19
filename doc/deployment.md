@@ -195,7 +195,7 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
-        proxy_set_header $remote_addr;
+        proxy_set_header X-Real-IP $remote_addr;
     }
 }
 ```
@@ -203,11 +203,11 @@ server {
 ### 4.2 启用站点
 
 ```bash
-# X-Real-IP 创建符号链接
-sudo ln -s //mapijing /etc/nginx/sites-enabled/
+# 创建符号链接
+sudo ln -s /etc/nginx/sites-available/mapijing /etc/nginx/sites-enabled/
 
 # 测试配置
-etc/nginx/sites-availablesudo nginx -t
+sudo nginx -t
 
 # 重载 Nginx
 sudo systemctl reload nginx
