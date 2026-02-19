@@ -1,0 +1,344 @@
+/* =====================
+   全局容器
+   ===================== */
+.mpj-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1a1a2e;
+  margin: 0;
+  letter-spacing: 0.5px;
+}
+
+/* =====================
+   未连接 - Landing 页
+   ===================== */
+.mpj-landing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f0f4ff 0%, #fdf6ff 100%);
+  padding: 48px 24px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.mpj-landing .mpj-title {
+  margin-bottom: 48px;
+  font-size: 32px;
+  background: linear-gradient(135deg, #6366f1, #a855f7);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.mpj-landing-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.mpj-avatar {
+  width: 180px;
+  height: 180px;
+  object-fit: contain;
+  border-radius: 50%;
+  background: white;
+  padding: 12px;
+  box-shadow: 0 8px 32px rgba(99, 102, 241, 0.15);
+}
+
+.mpj-connect-btn {
+  padding: 14px 48px;
+  background: linear-gradient(135deg, #6366f1, #a855f7);
+  color: white;
+  border: none;
+  border-radius: 32px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.35);
+  min-width: 140px;
+}
+
+.mpj-connect-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.45);
+}
+
+.mpj-connect-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.mpj-connect-error {
+  color: #dc2626;
+  background: #fef2f2;
+  border: 1px solid #fee2e2;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 14px;
+  max-width: 320px;
+  text-align: center;
+}
+
+/* =====================
+   已连接 - 对话页
+   ===================== */
+.mpj-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-width: 800px;
+  margin: 0 auto;
+  background: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* 顶部标题栏 */
+.mpj-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e7eb;
+  background: white;
+  flex-shrink: 0;
+}
+
+.mpj-disconnect-btn {
+  padding: 6px 16px;
+  background: none;
+  border: 1px solid #e5e7eb;
+  border-radius: 20px;
+  font-size: 13px;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mpj-disconnect-btn:hover {
+  border-color: #ef4444;
+  color: #ef4444;
+  background: #fef2f2;
+}
+
+/* 对话区域 */
+.mpj-chat-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  background: #f9fafb;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mpj-chat-empty {
+  text-align: center;
+  color: #9ca3af;
+  font-size: 14px;
+  margin: auto;
+}
+
+.mpj-message {
+  padding: 12px 16px;
+  border-radius: 12px;
+  max-width: 75%;
+  word-break: break-word;
+}
+
+.mpj-message.user {
+  background: linear-gradient(135deg, #6366f1, #818cf8);
+  color: white;
+  margin-left: auto;
+  border-bottom-right-radius: 4px;
+}
+
+.mpj-message.assistant {
+  background: white;
+  border: 1px solid #e5e7eb;
+  margin-right: auto;
+  border-bottom-left-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.mpj-message.current {
+  opacity: 0.75;
+  border-style: dashed;
+}
+
+.mpj-message-role {
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.mpj-message.user .mpj-message-role {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.mpj-message.assistant .mpj-message-role {
+  color: #6b7280;
+}
+
+.mpj-message-text {
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+/* =====================
+   底部操作区
+   ===================== */
+.mpj-input-area {
+  flex-shrink: 0;
+  padding: 12px 16px;
+  border-top: 1px solid #e5e7eb;
+  background: white;
+}
+
+/* 通用按钮 */
+.mpj-btn {
+  padding: 10px 18px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.mpj-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.mpj-btn-send {
+  background: #6366f1;
+  color: white;
+}
+
+.mpj-btn-send:hover:not(:disabled) {
+  background: #4f46e5;
+}
+
+.mpj-btn-talk {
+  background: #10b981;
+  color: white;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.mpj-btn-talk:hover:not(:disabled) {
+  background: #059669;
+}
+
+.mpj-btn-talk:active {
+  background: #047857;
+  transform: scale(0.97);
+}
+
+.mpj-btn-release {
+  background: #ef4444;
+  color: white;
+  animation: mpj-pulse 0.5s infinite;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.mpj-btn-interrupt {
+  background: #f59e0b;
+  color: white;
+}
+
+.mpj-btn-interrupt:hover {
+  background: #d97706;
+}
+
+/* 待命状态输入行 */
+.mpj-input-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.mpj-text-input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+  min-width: 0;
+}
+
+.mpj-text-input:focus {
+  border-color: #6366f1;
+}
+
+/* 录音中状态行 */
+.mpj-recording-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+  gap: 12px;
+}
+
+.mpj-recording-indicator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.mpj-recording-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ef4444;
+  animation: mpj-pulse 0.5s infinite;
+}
+
+/* 忙碌状态行（处理中/AI说话中） */
+.mpj-busy-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+  gap: 12px;
+}
+
+.mpj-busy-label {
+  font-size: 14px;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mpj-busy-label::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #8b5cf6;
+  animation: mpj-pulse 0.8s infinite;
+}
+
+@keyframes mpj-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}

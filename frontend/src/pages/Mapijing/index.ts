@@ -1,0 +1,1 @@
+export { Mapijing } from './Mapijing';
