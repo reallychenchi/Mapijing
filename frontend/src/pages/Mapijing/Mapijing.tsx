@@ -222,9 +222,21 @@ export function Mapijing() {
         }
 
         case 'error': {
-          const { message: errorMsg } = message.data as { message: string };
-          setError(errorMsg);
-          console.error('服务端错误:', errorMsg);
+          const { message: errorMsg, is_fatal } = message.data as { message: string; is_fatal?: boolean };
+          console.error('服务端错误:', errorMsg, 'is_fatal:', is_fatal);
+
+          if (is_fatal) {
+            // 致命错误：显示错误并断开连接
+            setError(errorMsg);
+            setSessionState('disconnected');
+          } else {
+            // 非致命错误：重置状态，清空当前文本，继续会话
+            setCurrentTextSync('');
+            setSessionState('connected');
+            // 可选：短暂显示错误提示（不影响会话继续）
+            // setError(errorMsg);
+            // setTimeout(() => setError(null), 3000);
+          }
           break;
         }
 

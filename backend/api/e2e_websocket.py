@@ -198,8 +198,13 @@ class E2EConnectionManager:
                 elif resp_type == "error":
                     error_msg = data.get("message", "未知错误")
                     is_fatal = data.get("is_fatal", False)
+                    # 发送错误消息给前端（包含 is_fatal 字段）
+                    await self.send_message({
+                        "type": "error",
+                        "data": {"message": error_msg, "is_fatal": is_fatal},
+                    })
                     if is_fatal:
-                        await self.send_error(ErrorCode.UNKNOWN_ERROR, error_msg)
+                        logger.error(f"E2E fatal error: {error_msg}")
                         return
                     else:
                         logger.warning(f"E2E non-fatal error: {error_msg}")
