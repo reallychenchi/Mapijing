@@ -77,8 +77,11 @@ class ASRService:
             self._connected = True
             logger.info(f"ASR connected, session_id={self._session_id}")
 
-            # 发送初始配置
+            # 发送初始配置并获取服务端分配的序列号
             await self._send_config()
+
+            # 等待并解析服务端的配置响应，获取 autoAssignedSequence
+            await self._receive_config_response()
 
             # 启动接收任务
             self._receive_task = asyncio.create_task(self._receive_loop())
@@ -88,6 +91,69 @@ class ASRService:
             logger.error(f"ASR connection failed: {e}")
             self.on_error(f"ASR 连接失败: {e}")
             return False
+
+    async def _receive_config_response(self) -> None:
+        """接收并解析服务端的配置响应，获取 autoAssignedSequence."""
+        if not self._ws:
+            return
+
+        try:
+            # 等待服务端的配置响应
+            message = await asyncio.wait_for(self._ws.recv(), timeout=10.0)
+            logger.debug(f"ASR config raw message type: {type(message)}, length: {len(message) if message else 0}")
+            logger.debug(f"ASR config raw message (first 100 bytes): {message[:100] if isinstance(message, bytes) else message}")
+
+            if isinstance(message, bytes):
+                # 手动解析配置响应，因为格式与普通 ASR 响应不同
+                import gzip
+                import json
+                import struct
+
+                # 解析头部
+                header = message[0:4]
+                compression = header[2] & 0x0F
+                msg_type = (header[1] >> 4) & 0x0F
+                logger.debug(f"ASR config: msg_type={msg_type}, compression={compression}")
+
+                # 读取 payload size
+                payload_size = struct.unpack(">I", message[4:8])[0]
+                logger.debug(f"ASR config: payload_size={payload_size}")
+
+                payload_bytes = message[8 : 8 + payload_size]
+
+                # 解压缩
+                if compression == 0b0001:  # GZIP
+                    try:
+                        payload_bytes = gzip.decompress(payload_bytes)
+                        logger.debug("ASR config: decompressed successfully")
+                    except Exception as e:
+                        logger.warning(f"ASR config: decompress failed: {e}")
+
+                # 尝试直接解析原始数据
+                try:
+                    response = json.loads(payload_bytes.decode("utf-8"))
+                    logger.debug(f"ASR config response: {response}")
+                except Exception as e:
+                    logger.warning(f"ASR config: JSON parse failed, trying raw: {e}")
+                    logger.debug(f"ASR config: raw payload: {payload_bytes[:200]}")
+                    return
+
+                if response.get("code", 0) != 0:
+                    error_msg = response.get("message", "Unknown ASR error")
+                    logger.error(f"ASR config error: {error_msg}")
+                    self.on_error(error_msg)
+                else:
+                    # 获取服务端分配的序列号
+                    auto_seq = response.get("result", {}).get("autoAssignedSequence", 0)
+                    if auto_seq == 0:
+                        # 也可能在根级别
+                        auto_seq = response.get("autoAssignedSequence", 0)
+                    self._seq = auto_seq
+                    logger.info(f"ASR config received, autoAssignedSequence={auto_seq}")
+        except asyncio.TimeoutError:
+            logger.warning("ASR config response timeout")
+        except Exception as e:
+            logger.error(f"ASR config response error: {e}")
 
     async def _send_config(self) -> None:
         """发送初始配置请求."""
@@ -100,16 +166,19 @@ class ASRService:
             },
             "audio": {
                 "format": "pcm",
-                "sample_rate": 16000,
+                "codec": "raw",
+                "rate": 16000,
                 "bits": 16,
                 "channel": 1,
-                "codec": "raw",
             },
             "request": {
+                "reqid": self._session_id,
+                "workflow": "audio_in",
+                "sequence": 1,
                 "model_name": "bigmodel",
                 "enable_itn": True,
                 "enable_punc": True,
-                "result_type": "single",
+                "result_type": "full",
             },
         }
 
@@ -122,7 +191,7 @@ class ASRService:
 
         Args:
             audio_base64: Base64 编码的音频数据
-            seq: 序列号
+            seq: 前端传入的帧序号（仅用于日志）
             is_last: 是否为最后一帧
         """
         if not self._ws or not self._connected:
@@ -131,10 +200,11 @@ class ASRService:
 
         try:
             audio_data = base64.b64decode(audio_base64)
-            frame = build_audio_only_request(audio_data, seq, is_last)
+            # 使用服务端分配的序列号，从 autoAssignedSequence 开始递增
+            self._seq += 1
+            frame = build_audio_only_request(audio_data, self._seq, is_last)
             await self._ws.send(frame)
-            self._seq = seq
-            logger.debug(f"ASR audio sent, seq={seq}, is_last={is_last}, size={len(audio_data)}")
+            logger.debug(f"ASR audio sent, req_seq={self._seq}, frontend_seq={seq}, is_last={is_last}, size={len(audio_data)}")
         except Exception as e:
             logger.error(f"ASR send audio failed: {e}")
 

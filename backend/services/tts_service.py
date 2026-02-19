@@ -279,7 +279,7 @@ class TTSService:
         request_json: dict[str, Any] = {
             "app": {
                 "appid": self.config.app_id,
-                "token": "access_token",
+                "token": self.config.access_key,
                 "cluster": cluster,
             },
             "user": {
@@ -288,6 +288,7 @@ class TTSService:
             "audio": {
                 "voice_type": self.config.voice_type,
                 "encoding": self.config.encoding,
+                "rate": 24000,
                 "speed_ratio": self.config.speed_ratio,
                 "volume_ratio": self.config.volume_ratio,
                 "pitch_ratio": self.config.pitch_ratio,
@@ -297,6 +298,7 @@ class TTSService:
                 "text": text,
                 "text_type": "plain",
                 "operation": "submit",
+                "with_timestamp": 1,
             },
         }
 
