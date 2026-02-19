@@ -412,6 +412,9 @@ export function Mapijing() {
           >
             {sessionState === 'connecting' ? '连接中...' : '连接'}
           </button>
+          <div className="mpj-intro-text">
+            这是一个人工智能马屁精！它唯一的任务就是让你开心，不解决实际问题，但专治心情不佳。而且它没有记忆力，每次对话都是全新的开始，你可以放心地聊任何话题，因为刷新后一切都不会留下痕迹。准备好了吗？点按钮，听它的彩虹马屁震天响！
+          </div>
           {error && (
             <div className="mpj-connect-error">{error}</div>
           )}
