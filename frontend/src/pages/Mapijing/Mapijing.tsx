@@ -456,16 +456,18 @@ export function Mapijing() {
       <div className="mpj-chat-area" ref={chatAreaRef}>
         {messages.map(msg => (
           <div key={msg.id} className={`mpj-message ${msg.role}`}>
-            <div className="mpj-message-role">{msg.role === 'user' ? '你' : '马屁精'}</div>
+            {msg.role === 'assistant' && (
+              <img src={AVATAR_MAP.default} alt="马屁精" className="mpj-message-avatar" />
+            )}
             <div className="mpj-message-text">{msg.text}</div>
           </div>
         ))}
 
         {currentText && (
           <div className={`mpj-message ${currentTextRole} current`}>
-            <div className="mpj-message-role">
-              {currentTextRole === 'user' ? '你' : '马屁精'}
-            </div>
+            {currentTextRole === 'assistant' && (
+              <img src={AVATAR_MAP.default} alt="马屁精" className="mpj-message-avatar" />
+            )}
             <div className="mpj-message-text">{currentText}</div>
           </div>
         )}
