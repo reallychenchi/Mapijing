@@ -127,7 +127,7 @@ User=www-data
 Group=www-data
 WorkingDirectory=/var/www/Mapijing/backend
 Environment="PATH=/var/www/Mapijing/backend/venv/bin"
-ExecStart=/var/www/Mapijing/backend/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
+ExecStart=/var/www/Mapijing/backend/venv/bin/python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=10
 
