@@ -296,8 +296,24 @@ export function Mapijing() {
   }, [cleanup]);
 
   // 开始录音
-  const startRecording = useCallback(async () => {
+  const startRecording = useCallback(async (e?: React.MouseEvent | React.TouchEvent) => {
+    // 阻止默认行为，防止移动端触摸后触发鼠标事件
+    e?.preventDefault();
+
     if (!wsRef.current || sessionState !== 'connected') {
+      return;
+    }
+
+    // 检查浏览器是否支持 getUserMedia
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      const isHttps = window.location.protocol === 'https:';
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+      if (!isHttps && !isLocalhost) {
+        setError('语音功能需要 HTTPS 连接或 localhost 访问。请使用 HTTPS 或通过 localhost 访问应用。');
+      } else {
+        setError('您的浏览器不支持录音功能，请使用现代浏览器（Chrome、Safari、Firefox 等）');
+      }
       return;
     }
 
@@ -352,12 +368,25 @@ export function Mapijing() {
 
     } catch (e) {
       console.error('启动录音失败:', e);
-      setError('无法访问麦克风，请检查权限设置');
+      if (e instanceof Error) {
+        if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+          setError('麦克风权限被拒绝，请在浏览器设置中允许使用麦克风');
+        } else if (e.name === 'NotFoundError' || e.name === 'DevicesNotFoundError') {
+          setError('未找到可用的麦克风设备');
+        } else {
+          setError(`录音失败: ${e.message}`);
+        }
+      } else {
+        setError('无法访问麦克风，请检查权限设置');
+      }
     }
   }, [sessionState, setCurrentTextSync]);
 
   // 停止录音
-  const stopRecording = useCallback(() => {
+  const stopRecording = useCallback((e?: React.MouseEvent | React.TouchEvent) => {
+    // 阻止默认行为
+    e?.preventDefault();
+
     if (!isRecordingRef.current) return;
 
     isRecordingRef.current = false;
@@ -477,6 +506,14 @@ export function Mapijing() {
         )}
       </div>
 
+      {/* 错误提示 */}
+      {error && (
+        <div className="mpj-error-banner">
+          {error}
+          <button onClick={() => setError(null)} className="mpj-error-close">×</button>
+        </div>
+      )}
+
       {/* 底部操作区 */}
       <div className="mpj-input-area">
         {isBusy ? (
@@ -500,6 +537,7 @@ export function Mapijing() {
               onMouseUp={stopRecording}
               onMouseLeave={stopRecording}
               onTouchEnd={stopRecording}
+              onTouchCancel={stopRecording}
               className="mpj-btn mpj-btn-release"
             >
               松开结束
@@ -529,6 +567,7 @@ export function Mapijing() {
               onMouseLeave={stopRecording}
               onTouchStart={startRecording}
               onTouchEnd={stopRecording}
+              onTouchCancel={stopRecording}
               className="mpj-btn mpj-btn-talk"
             >
               按住说话
