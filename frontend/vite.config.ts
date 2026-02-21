@@ -9,5 +9,8 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     base,
+    server: {
+      host: '0.0.0.0',  // 监听所有网络接口，允许局域网访问
+    },
   }
 })
