@@ -95,7 +95,8 @@ let wsService: WebSocketService | null = null;
 
 export function getWebSocketService(): WebSocketService {
   if (!wsService) {
-    const wsUrl = `ws://${window.location.hostname}:8000/ws/chat`;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/mapijing/ws/chat`;
     wsService = new WebSocketService(wsUrl);
   }
   return wsService;
