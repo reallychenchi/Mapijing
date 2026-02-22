@@ -259,7 +259,7 @@ export function Mapijing() {
     setError(null);
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.hostname}:8000/ws/e2e-chat`;
+    const wsUrl = `${protocol}//${window.location.host}/mapijing/ws/e2e-chat`;
 
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;

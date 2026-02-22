@@ -11,6 +11,23 @@ export default defineConfig(({ mode }) => {
     base,
     server: {
       host: '0.0.0.0',  // 监听所有网络接口，允许局域网访问
+      proxy: {
+        // 代理 WebSocket 连接到远程服务器
+        '/mapijing/ws': {
+          target: 'wss://ai.chenchi.cc',
+          changeOrigin: true,
+          ws: true,
+          secure: true,
+          rewrite: (path) => path,
+        },
+        // 代理 API 请求到远程服务器
+        '/mapijing/api': {
+          target: 'https://ai.chenchi.cc',
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path) => path,
+        },
+      },
     },
   }
 })
