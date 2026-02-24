@@ -39,6 +39,7 @@ export function Mapijing() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const isRecordingRef = useRef(false);
+  const isButtonPressedRef = useRef(false); // 跟踪按钮是否被按下
 
   // 音频播放
   const audioQueueRef = useRef<ArrayBuffer[]>([]);
@@ -75,6 +76,7 @@ export function Mapijing() {
       mediaStreamRef.current = null;
     }
     isRecordingRef.current = false;
+    isButtonPressedRef.current = false;
 
     audioQueueRef.current = [];
     isPlayingRef.current = false;
@@ -304,6 +306,9 @@ export function Mapijing() {
       return;
     }
 
+    // 标记按钮已按下
+    isButtonPressedRef.current = true;
+
     // 检查浏览器是否支持 getUserMedia
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       const isHttps = window.location.protocol === 'https:';
@@ -314,6 +319,7 @@ export function Mapijing() {
       } else {
         setError('您的浏览器不支持录音功能，请使用现代浏览器（Chrome、Safari、Firefox 等）');
       }
+      isButtonPressedRef.current = false;
       return;
     }
 
@@ -326,6 +332,14 @@ export function Mapijing() {
           noiseSuppression: true,
         }
       });
+
+      // 权限确认完成后，检查用户是否已经松开按钮
+      if (!isButtonPressedRef.current) {
+        // 用户已经松开按钮，立即释放资源
+        stream.getTracks().forEach(track => track.stop());
+        return;
+      }
+
       mediaStreamRef.current = stream;
 
       const audioContext = new AudioContext({ sampleRate: 16000 });
@@ -368,6 +382,7 @@ export function Mapijing() {
 
     } catch (e) {
       console.error('启动录音失败:', e);
+      isButtonPressedRef.current = false;
       if (e instanceof Error) {
         if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
           setError('麦克风权限被拒绝，请在浏览器设置中允许使用麦克风');
@@ -387,6 +402,10 @@ export function Mapijing() {
     // 阻止默认行为
     e?.preventDefault();
 
+    // 标记按钮已松开（无论录音是否已启动，都要标记）
+    isButtonPressedRef.current = false;
+
+    // 如果录音还未真正开始，直接返回
     if (!isRecordingRef.current) return;
 
     isRecordingRef.current = false;
