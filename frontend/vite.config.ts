@@ -13,10 +13,10 @@ export default defineConfig(({ mode }) => {
     base,
     server: {
       host: '0.0.0.0',  // 监听所有网络接口，允许局域网访问
-      https: {
+      https: fs.existsSync(path.resolve(__dirname, 'key.pem')) ? {
         key: fs.readFileSync(path.resolve(__dirname, 'key.pem')),
         cert: fs.readFileSync(path.resolve(__dirname, 'cert.pem')),
-      },
+      } : false,
       proxy: {
         // 代理 WebSocket 连接到远程服务器
         '/mapijing/ws': {
