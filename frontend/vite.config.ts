@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => {
       https: fs.existsSync(path.resolve(__dirname, 'key.pem')) ? {
         key: fs.readFileSync(path.resolve(__dirname, 'key.pem')),
         cert: fs.readFileSync(path.resolve(__dirname, 'cert.pem')),
-      } : false,
+      } : undefined,
       proxy: {
         // 代理 WebSocket 连接到远程服务器
         '/mapijing/ws': {
