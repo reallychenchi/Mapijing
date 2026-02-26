@@ -152,14 +152,19 @@ class E2EConnectionManager:
             logger.warning("_receive_responses: e2e_service is None")
             return
 
-        logger.info("_receive_responses: started")
+        logger.info("[E2E] _receive_responses: started, entering loop")
         tts_seq = 0
         full_chat_text = ""
+        loop_count = 0
 
         try:
             async for response in self.e2e_service.receive_responses():
+                loop_count += 1
+                if loop_count % 10 == 0 or loop_count <= 5:
+                    logger.info(f"[E2E] _receive_responses loop iteration {loop_count}")
                 resp_type = response.get("type")
                 data = response.get("data", {})
+                logger.debug(f"[E2E] Processing response: type={resp_type}")
 
                 if resp_type == "asr_started":
                     # 用户开始说话，清空之前的状态
@@ -202,6 +207,7 @@ class E2EConnectionManager:
                     error_msg = data.get("message", "未知错误")
                     is_fatal = data.get("is_fatal", False)
                     # 发送错误消息给前端（包含 is_fatal 字段）
+                    logger.warning(f"[E2E] Received error: {error_msg}, is_fatal={is_fatal}, will continue loop")
                     await self.send_message({
                         "type": "error",
                         "data": {"message": error_msg, "is_fatal": is_fatal},
@@ -210,15 +216,21 @@ class E2EConnectionManager:
                         logger.error(f"E2E fatal error: {error_msg}")
                         return
                     else:
-                        logger.warning(f"E2E non-fatal error: {error_msg}")
+                        # 检查是否是空闲超时错误，需要重启会话
+                        if "DialogAudioIdleTimeoutError" in error_msg or "52000042" in error_msg:
+                            logger.warning("[E2E] DialogAudioIdleTimeoutError detected, session needs restart")
+                            # 会话已失效，设置标志以便下次使用时重新启动
+                            if self.e2e_service:
+                                self.e2e_service._session_invalidated = True
+                        logger.info(f"[E2E] Non-fatal error processed, continuing receive loop")
 
         except asyncio.CancelledError:
-            logger.info("Response receive task cancelled")
+            logger.info("[E2E] Response receive task cancelled")
         except Exception as e:
-            logger.error(f"Error receiving responses: {e}")
+            logger.error(f"[E2E] Error receiving responses: {e}", exc_info=True)
             await self.send_error(ErrorCode.UNKNOWN_ERROR, str(e))
 
-        logger.info("_receive_responses: finished")
+        logger.info(f"[E2E] _receive_responses: finished after {loop_count} iterations")
 
 
 # 全局连接管理器实例
@@ -252,8 +264,13 @@ async def handle_e2e_message(message: dict[str, Any], websocket: WebSocket) -> N
         # 文本查询
         data = message.get("data", {})
         text = data.get("text", "")
+        logger.info(f"[E2E] text_query received: '{text[:50]}...', e2e_service exists={e2e_manager.e2e_service is not None}")
         if text and e2e_manager.e2e_service:
+            logger.info(f"[E2E] Sending text to e2e_service...")
             await e2e_manager.e2e_service.send_text(text)
+            logger.info(f"[E2E] Text sent to e2e_service successfully")
+        else:
+            logger.warning(f"[E2E] Cannot send text: text_empty={not text}, service_missing={e2e_manager.e2e_service is None}")
 
     elif msg_type == "say_hello":
         # 打招呼

@@ -193,6 +193,7 @@ class E2EDialogClient:
         Args:
             text: 用户输入的文本
         """
+        logger.info(f"[E2E Client] send_text_query called: text='{text[:50]}...', connected={self._connected}, session_started={self._session_started}")
         if not self._ws or not self._connected:
             logger.warning("Cannot send text query: not connected")
             return
@@ -208,7 +209,7 @@ class E2EDialogClient:
             payload=payload,
         )
         await self._ws.send(frame)
-        logger.info(f"TextQuery sent: {text[:50]}...")
+        logger.info(f"[E2E Client] TextQuery sent successfully: {text[:50]}...")
 
     async def say_hello(self, content: str = "你好，我是小马，有什么可以帮助你的吗？") -> None:
         """发送打招呼消息.
@@ -303,6 +304,9 @@ class E2EDialogClient:
         message_type = response.get('message_type')
         payload = response.get('payload_msg')
 
+        # 记录所有响应的基本信息
+        logger.debug(f"[E2E Client] Response: event={event}, msg_type={message_type}")
+
         # 记录事件日志
         if event:
             event_name = get_event_name(event)
@@ -331,20 +335,38 @@ class E2EDialogClient:
 
         # 处理错误
         if message_type == 'SERVER_ERROR':
+            logger.error(f"[E2E Client] SERVER_ERROR payload type={type(payload)}, value={payload}")
             if isinstance(payload, dict):
-                error_msg = payload.get('error', 'Unknown error')
+                # 火山引擎错误格式: {'error': 'sami error: codes=52000042, desc=DialogAudioIdleTimeoutError'}
+                error_msg = payload.get('error', payload.get('message', 'Unknown error'))
+
+                # 尝试从错误字符串中解析 codes 和 desc
+                import re
+                codes_match = re.search(r'codes=(\d+)', error_msg)
+                desc_match = re.search(r'desc=(\w+)', error_msg)
+                codes = codes_match.group(1) if codes_match else 'unknown'
+                desc = desc_match.group(1) if desc_match else ''
+
+                logger.error(f"[E2E Client] SERVER_ERROR: codes={codes}, desc={desc}, original_msg={error_msg}")
+
+                # 保留原始错误消息格式，传递给前端
+                self.on_error(error_msg, False)
             else:
-                error_msg = str(payload)
-            logger.error(f"Server error: {error_msg}")
-            self.on_error(error_msg, False)
+                error_msg = str(payload) if payload else 'Unknown server error'
+                logger.error(f"[E2E Client] SERVER_ERROR (non-dict payload): {error_msg}")
+                self.on_error(error_msg, False)
             return
 
         if event == 599:  # DialogCommonError
             error_info = payload if isinstance(payload, dict) else {}
             status_code = error_info.get('status_code', 'unknown')
             message = error_info.get('message', 'Dialog error')
-            logger.error(f"Dialog error: {status_code} - {message}")
-            self.on_error(f"{status_code}: {message}", False)
+            codes = error_info.get('codes', 'unknown')
+            desc = error_info.get('desc', '')
+            logger.error(f"[E2E Client] DialogCommonError (event 599): status_code={status_code}, codes={codes}, desc={desc}, message={message}, full_payload={payload}")
+            # 使用更详细的错误消息
+            error_msg = f"sami error: codes={codes}, desc={desc}"
+            self.on_error(error_msg, False)
             return
 
         # 转发响应到回调

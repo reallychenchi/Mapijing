@@ -83,6 +83,7 @@ class E2EDialogService:
         self._is_user_speaking = False
         self._is_ai_responding = False
         self._interrupted = False
+        self._session_invalidated = False  # 会话是否已失效（如空闲超时）
 
     @property
     def session_id(self) -> str:
@@ -160,6 +161,15 @@ class E2EDialogService:
         Args:
             audio_base64: Base64 编码的 PCM 音频数据
         """
+        # 检查会话是否失效，如果失效则尝试恢复
+        if self._session_invalidated:
+            logger.warning("[E2E Service] Session invalidated, attempting to restart...")
+            if await self._restart_session():
+                logger.info("[E2E Service] Session restarted successfully")
+            else:
+                logger.error("[E2E Service] Failed to restart session")
+                return
+
         if not self._client or not self._client.is_session_started:
             logger.warning("Cannot send audio: session not ready")
             return
@@ -176,11 +186,51 @@ class E2EDialogService:
         Args:
             text: 用户输入的文本
         """
+        # 检查会话是否失效，如果失效则尝试恢复
+        if self._session_invalidated:
+            logger.warning("[E2E Service] Session invalidated, attempting to restart...")
+            if await self._restart_session():
+                logger.info("[E2E Service] Session restarted successfully")
+            else:
+                logger.error("[E2E Service] Failed to restart session")
+                return
+
         if not self._client or not self._client.is_session_started:
             logger.warning("Cannot send text: session not ready")
             return
 
         await self._client.send_text_query(text)
+
+    async def _restart_session(self) -> bool:
+        """重启会话（在会话失效时调用）.
+
+        Returns:
+            会话是否重启成功
+        """
+        logger.info("[E2E Service] Restarting session...")
+        self._session_invalidated = False
+
+        # 先结束当前会话
+        if self._client and self._client.is_session_started:
+            try:
+                await self._client.finish_session()
+            except Exception as e:
+                logger.warning(f"Error finishing old session: {e}")
+
+        # 重新启动会话
+        if self._client and self._client.is_connected:
+            success = await self.start_session("audio")
+            if success:
+                logger.info("[E2E Service] Session restarted successfully")
+                return True
+
+        # 如果连接也断了，需要重新连接
+        logger.warning("[E2E Service] Connection lost, reconnecting...")
+        if await self.connect():
+            success = await self.start_session("audio")
+            return success
+
+        return False
 
     async def say_hello(self, content: str | None = None) -> None:
         """发送打招呼消息.
@@ -217,17 +267,22 @@ class E2EDialogService:
             - error: 错误信息
         """
         self._interrupted = False
+        logger.info("[E2E Service] receive_responses: starting loop")
 
         while True:
             # 检查错误队列
             try:
                 error_msg, is_fatal = self._error_queue.get_nowait()
+                logger.warning(f"[E2E Service] Error from queue: {error_msg}, is_fatal={is_fatal}")
                 yield {
                     "type": "error",
                     "data": {"message": error_msg, "is_fatal": is_fatal},
                 }
                 if is_fatal:
+                    logger.info("[E2E Service] Fatal error, exiting receive_responses")
                     return
+                else:
+                    logger.info("[E2E Service] Non-fatal error, continuing loop")
             except asyncio.QueueEmpty:
                 pass
 
@@ -236,7 +291,7 @@ class E2EDialogService:
                 response = await asyncio.wait_for(
                     self._response_queue.get(), timeout=0.1
                 )
-                logger.info(f"E2E response received: event={response.get('event')}, type={response.get('type')}")
+                logger.info(f"[E2E Service] Response received: event={response.get('event')}, type={response.get('type')}")
             except asyncio.TimeoutError:
                 # 检查连接状态
                 is_conn = self.is_connected

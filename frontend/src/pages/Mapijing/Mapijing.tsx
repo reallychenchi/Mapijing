@@ -23,8 +23,16 @@ interface Message {
 export function Mapijing() {
   // WebSocket 和会话状态
   const [sessionState, setSessionState] = useState<SessionState>('disconnected');
+  const sessionStateRef = useRef<SessionState>('disconnected'); // 同步镜像，用于闭包中读取最新值
   const [error, setError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+
+  // 同步更新 sessionState 和 ref
+  const setSessionStateSync = useCallback((state: SessionState) => {
+    sessionStateRef.current = state;
+    setSessionState(state);
+    console.log('[E2E] Session state changed to:', state);
+  }, []);
 
   // 对话内容
   const [messages, setMessages] = useState<Message[]>([]);
@@ -157,7 +165,7 @@ export function Mapijing() {
 
       switch (message.type) {
         case 'session_started':
-          setSessionState('connected');
+          setSessionStateSync('connected');
           setError(null);
           // 发送自动问候消息（不在前端显示）
           if (wsRef.current) {
@@ -185,7 +193,7 @@ export function Mapijing() {
         }
 
         case 'asr_end':
-          setSessionState('processing');
+          setSessionStateSync('processing');
           break;
 
         case 'chat_text': {
@@ -194,7 +202,7 @@ export function Mapijing() {
           setCurrentTextRole('assistant');
           const updated = currentTextRef.current + text;
           setCurrentTextSync(updated);
-          setSessionState('speaking');
+          setSessionStateSync('speaking');
           break;
         }
 
@@ -221,22 +229,24 @@ export function Mapijing() {
             }]);
           }
           setCurrentTextSync('');
-          setSessionState('connected');
+          setSessionStateSync('connected');
           break;
         }
 
         case 'error': {
           const { message: errorMsg, is_fatal } = message.data as { message: string; is_fatal?: boolean };
-          console.error('服务端错误:', errorMsg, 'is_fatal:', is_fatal);
+          console.error('[E2E] 服务端错误:', errorMsg, 'is_fatal:', is_fatal, '当前状态(ref):', sessionStateRef.current);
 
           if (is_fatal) {
             // 致命错误：显示错误并断开连接
             setError(errorMsg);
-            setSessionState('disconnected');
+            setSessionStateSync('disconnected');
+            console.log('[E2E] 致命错误，断开连接');
           } else {
             // 非致命错误：重置状态，清空当前文本，继续会话
+            console.log('[E2E] 非致命错误，重置状态为 connected');
             setCurrentTextSync('');
-            setSessionState('connected');
+            setSessionStateSync('connected');
             // 可选：短暂显示错误提示（不影响会话继续）
             // setError(errorMsg);
             // setTimeout(() => setError(null), 3000);
@@ -258,7 +268,7 @@ export function Mapijing() {
       return;
     }
 
-    setSessionState('connecting');
+    setSessionStateSync('connecting');
     setError(null);
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -276,13 +286,15 @@ export function Mapijing() {
 
     ws.onmessage = handleWSMessage;
 
-    ws.onerror = () => {
+    ws.onerror = (event) => {
+      console.error('[E2E] WebSocket error:', event, 'readyState=', ws.readyState);
       setError('连接失败，请检查网络或服务是否正常');
-      setSessionState('disconnected');
+      setSessionStateSync('disconnected');
     };
 
-    ws.onclose = () => {
-      setSessionState('disconnected');
+    ws.onclose = (event) => {
+      console.log('[E2E] WebSocket closed:', 'code=', event.code, 'reason=', event.reason, 'wasClean=', event.wasClean);
+      setSessionStateSync('disconnected');
       wsRef.current = null;
     };
   }, [handleWSMessage]);
@@ -293,7 +305,7 @@ export function Mapijing() {
       wsRef.current.send(JSON.stringify({ type: 'finish_session', data: {} }));
       setTimeout(() => {
         cleanup();
-        setSessionState('disconnected');
+        setSessionStateSync('disconnected');
       }, 100);
     }
   }, [cleanup]);
@@ -382,7 +394,7 @@ export function Mapijing() {
       isRecordingRef.current = true;
       setCurrentTextRole('user');
       setCurrentTextSync('');
-      setSessionState('listening');
+      setSessionStateSync('listening');
 
     } catch (e) {
       console.error('启动录音失败:', e);
@@ -428,12 +440,14 @@ export function Mapijing() {
       mediaStreamRef.current = null;
     }
 
-    setSessionState('processing');
+    setSessionStateSync('processing');
   }, []);
 
   // 发送文本
   const sendText = useCallback(() => {
+    console.log('[E2E] sendText called, wsRef=', !!wsRef.current, 'inputText=', inputText.trim(), 'sessionState=', sessionState);
     if (!wsRef.current || !inputText.trim() || sessionState !== 'connected') {
+      console.warn('[E2E] sendText blocked: ws=', !!wsRef.current, 'inputEmpty=', !inputText.trim(), 'state=', sessionState);
       return;
     }
 
@@ -446,12 +460,14 @@ export function Mapijing() {
     }]);
     setInputText('');
 
+    console.log('[E2E] Sending text_query:', text);
     wsRef.current.send(JSON.stringify({
       type: 'text_query',
       data: { text }
     }));
 
-    setSessionState('processing');
+    setSessionStateSync('processing');
+    console.log('[E2E] State changed to processing');
   }, [inputText, sessionState]);
 
   // 打断
@@ -459,7 +475,7 @@ export function Mapijing() {
     if (wsRef.current && (sessionState === 'speaking' || sessionState === 'processing')) {
       wsRef.current.send(JSON.stringify({ type: 'interrupt', data: {} }));
       audioQueueRef.current = [];
-      setSessionState('connected');
+      setSessionStateSync('connected');
       setCurrentTextSync('');
     }
   }, [sessionState, setCurrentTextSync]);
