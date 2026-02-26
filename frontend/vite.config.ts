@@ -18,20 +18,18 @@ export default defineConfig(({ mode }) => {
         cert: fs.readFileSync(path.resolve(__dirname, 'cert.pem')),
       } : undefined,
       proxy: {
-        // 代理 WebSocket 连接到远程服务器
+        // 代理 WebSocket 连接到本地服务器
         '/mapijing/ws': {
-          target: 'wss://ai.chenchi.cc',
+          target: 'ws://localhost:8000',
           changeOrigin: true,
           ws: true,
-          secure: true,
-          rewrite: (path) => path,
+          rewrite: (path) => path.replace(/^\/mapijing/, ''),
         },
-        // 代理 API 请求到远程服务器
+        // 代理 API 请求到本地服务器
         '/mapijing/api': {
-          target: 'https://ai.chenchi.cc',
+          target: 'http://localhost:8000',
           changeOrigin: true,
-          secure: true,
-          rewrite: (path) => path,
+          rewrite: (path) => path.replace(/^\/mapijing/, ''),
         },
       },
     },
