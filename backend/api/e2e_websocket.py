@@ -119,6 +119,7 @@ class E2EConnectionManager:
         Returns:
             会话是否启动成功
         """
+        logger.info(f"start_e2e_session called, input_mod={input_mod}, _receive_task={self._receive_task}")
         if not self.e2e_service:
             await self.send_error(ErrorCode.UNKNOWN_ERROR, "E2E 服务未初始化")
             return False
@@ -148,8 +149,10 @@ class E2EConnectionManager:
     async def _receive_responses(self) -> None:
         """接收并转发端到端服务的响应."""
         if not self.e2e_service:
+            logger.warning("_receive_responses: e2e_service is None")
             return
 
+        logger.info("_receive_responses: started")
         tts_seq = 0
         full_chat_text = ""
 
@@ -210,10 +213,12 @@ class E2EConnectionManager:
                         logger.warning(f"E2E non-fatal error: {error_msg}")
 
         except asyncio.CancelledError:
-            logger.debug("Response receive task cancelled")
+            logger.info("Response receive task cancelled")
         except Exception as e:
             logger.error(f"Error receiving responses: {e}")
             await self.send_error(ErrorCode.UNKNOWN_ERROR, str(e))
+
+        logger.info("_receive_responses: finished")
 
 
 # 全局连接管理器实例
@@ -234,8 +239,14 @@ async def handle_e2e_message(message: dict[str, Any], websocket: WebSocket) -> N
         # 音频数据
         data = message.get("data", {})
         audio = data.get("audio", "")
+        logger.info(f"Received audio_data, audio length={len(audio) if audio else 0}, e2e_service exists={e2e_manager.e2e_service is not None}")
         if audio and e2e_manager.e2e_service:
-            await e2e_manager.e2e_service.send_audio(audio)
+            try:
+                await e2e_manager.e2e_service.send_audio(audio)
+                logger.info(f"Audio sent to E2E service successfully")
+            except Exception as e:
+                logger.error(f"Failed to send audio: {e}")
+                await e2e_manager.send_error(ErrorCode.UNKNOWN_ERROR, f"发送音频失败: {e}")
 
     elif msg_type == "text_query":
         # 文本查询

@@ -236,9 +236,13 @@ class E2EDialogService:
                 response = await asyncio.wait_for(
                     self._response_queue.get(), timeout=0.1
                 )
+                logger.info(f"E2E response received: event={response.get('event')}, type={response.get('type')}")
             except asyncio.TimeoutError:
                 # 检查连接状态
-                if not self.is_connected:
+                is_conn = self.is_connected
+                client_conn = self._client.is_connected if self._client else False
+                if not is_conn:
+                    logger.warning(f"Connection lost, is_connected={is_conn}, client.is_connected={client_conn}")
                     yield {
                         "type": "error",
                         "data": {"message": "连接已断开", "is_fatal": True},

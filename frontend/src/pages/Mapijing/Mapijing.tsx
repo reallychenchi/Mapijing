@@ -151,6 +151,7 @@ export function Mapijing() {
 
   // 处理 WebSocket 消息
   const handleWSMessage = useCallback((event: MessageEvent) => {
+    console.log('[WS] Received message:', event.data.substring(0, 200));
     try {
       const message: WSMessage = JSON.parse(event.data);
 
@@ -301,6 +302,7 @@ export function Mapijing() {
   const startRecording = useCallback(async (e?: React.MouseEvent | React.TouchEvent) => {
     // 阻止默认行为，防止移动端触摸后触发鼠标事件
     e?.preventDefault();
+    console.log('[Recording] startRecording called, sessionState=', sessionState);
 
     if (!wsRef.current || sessionState !== 'connected') {
       return;
@@ -350,6 +352,7 @@ export function Mapijing() {
       processorRef.current = processor;
 
       processor.onaudioprocess = (e) => {
+        console.log('[Audio] onaudioprocess called, isRecording=', isRecordingRef.current, 'ws=', !!wsRef.current);
         if (!isRecordingRef.current || !wsRef.current) return;
 
         const inputData = e.inputBuffer.getChannelData(0);
@@ -366,6 +369,7 @@ export function Mapijing() {
         }
         const base64 = btoa(binary);
 
+        console.log('[Audio] Sending audio_data, length=', base64.length);
         wsRef.current.send(JSON.stringify({
           type: 'audio_data',
           data: { audio: base64 }
@@ -401,6 +405,7 @@ export function Mapijing() {
   const stopRecording = useCallback((e?: React.MouseEvent | React.TouchEvent) => {
     // 阻止默认行为
     e?.preventDefault();
+    console.log('[Recording] stopRecording called, isRecording=', isRecordingRef.current);
 
     // 标记按钮已松开（无论录音是否已启动，都要标记）
     isButtonPressedRef.current = false;
