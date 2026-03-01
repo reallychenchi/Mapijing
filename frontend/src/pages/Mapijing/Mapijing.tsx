@@ -280,7 +280,7 @@ export function Mapijing() {
     ws.onopen = () => {
       ws.send(JSON.stringify({
         type: 'start_session',
-        data: { input_mod: 'audio' }
+        data: { input_mod: 'keep_alive' }
       }));
     };
 
@@ -360,7 +360,7 @@ export function Mapijing() {
       audioContextRef.current = audioContext;
 
       const source = audioContext.createMediaStreamSource(stream);
-      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      const processor = audioContext.createScriptProcessor(256, 1, 1);
       processorRef.current = processor;
 
       processor.onaudioprocess = (e) => {
