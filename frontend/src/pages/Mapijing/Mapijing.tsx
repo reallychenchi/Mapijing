@@ -45,7 +45,7 @@ export function Mapijing() {
   // 录音相关
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const processorRef = useRef<AudioWorkletNode | null>(null);
   const isRecordingRef = useRef(false);
   const isButtonPressedRef = useRef(false); // 跟踪按钮是否被按下
 
@@ -72,6 +72,7 @@ export function Mapijing() {
   // 清理函数
   const cleanup = useCallback(() => {
     if (processorRef.current) {
+      processorRef.current.port.onmessage = null;
       processorRef.current.disconnect();
       processorRef.current = null;
     }
@@ -102,6 +103,15 @@ export function Mapijing() {
   useEffect(() => {
     return cleanup;
   }, [cleanup]);
+
+  // 预加载 AudioWorklet 模块，暖热浏览器 HTTP 缓存，消除首次录音的加载延迟
+  useEffect(() => {
+    const ctx = new AudioContext();
+    ctx.audioWorklet
+      .addModule(`${import.meta.env.BASE_URL}audio-processor.worklet.js`)
+      .catch((e) => console.warn('[AudioWorklet] 预加载失败:', e))
+      .finally(() => ctx.close());
+  }, []);
 
   // 消息更新时自动滚动到底部
   useEffect(() => {
@@ -359,18 +369,23 @@ export function Mapijing() {
       const audioContext = new AudioContext({ sampleRate: 16000 });
       audioContextRef.current = audioContext;
 
-      const source = audioContext.createMediaStreamSource(stream);
-      const processor = audioContext.createScriptProcessor(256, 1, 1);
-      processorRef.current = processor;
+      // 加载 worklet 模块（首次从网络加载，后续命中 HTTP 缓存，极快）
+      await audioContext.audioWorklet.addModule(
+        `${import.meta.env.BASE_URL}audio-processor.worklet.js`
+      );
 
-      processor.onaudioprocess = (e) => {
-        console.log('[Audio] onaudioprocess called, isRecording=', isRecordingRef.current, 'ws=', !!wsRef.current);
+      const source = audioContext.createMediaStreamSource(stream);
+      const workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
+      processorRef.current = workletNode;
+
+      workletNode.port.onmessage = (e) => {
         if (!isRecordingRef.current || !wsRef.current) return;
 
-        const inputData = e.inputBuffer.getChannelData(0);
-        const pcmData = new Int16Array(inputData.length);
-        for (let i = 0; i < inputData.length; i++) {
-          const s = Math.max(-1, Math.min(1, inputData[i]));
+        // worklet 通过 Transferable 传来的 Float32Array（20ms / 320帧）
+        const pcmFloat32: Float32Array = e.data.pcmFloat32;
+        const pcmData = new Int16Array(pcmFloat32.length);
+        for (let i = 0; i < pcmFloat32.length; i++) {
+          const s = Math.max(-1, Math.min(1, pcmFloat32[i]));
           pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
         }
 
@@ -379,17 +394,15 @@ export function Mapijing() {
         for (let i = 0; i < bytes.length; i++) {
           binary += String.fromCharCode(bytes[i]);
         }
-        const base64 = btoa(binary);
 
-        console.log('[Audio] Sending audio_data, length=', base64.length);
         wsRef.current.send(JSON.stringify({
           type: 'audio_data',
-          data: { audio: base64 }
+          data: { audio: btoa(binary) }
         }));
       };
 
-      source.connect(processor);
-      processor.connect(audioContext.destination);
+      source.connect(workletNode);
+      workletNode.connect(audioContext.destination);
 
       isRecordingRef.current = true;
       setCurrentTextRole('user');
@@ -428,6 +441,7 @@ export function Mapijing() {
     isRecordingRef.current = false;
 
     if (processorRef.current) {
+      processorRef.current.port.onmessage = null;
       processorRef.current.disconnect();
       processorRef.current = null;
     }
